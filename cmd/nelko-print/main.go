@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	AppVersion = "1.1.0"
+	AppVersion = "1.2.0"
 	AppName    = "Nelko P21 Print"
 )
 
