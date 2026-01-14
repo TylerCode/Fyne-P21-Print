@@ -3,7 +3,8 @@ Cross-platform label maker app for the Nelko P21 thermal printer. Works on Linux
 
 Written in Go using Fyne
 
-<img width="615" height="577" alt="image" src="https://github.com/user-attachments/assets/f2d1a4f7-9385-47fd-a460-ce4689f2fdec" />
+<img width="691" height="607" alt="image" src="https://github.com/user-attachments/assets/d9cfd7af-1121-44f5-845a-ff8512c2498d" />
+
 
 Based on the reverse engineering work from [merlinschumacher/nelko-p21-print](https://github.com/merlinschumacher/nelko-p21-print).
 
