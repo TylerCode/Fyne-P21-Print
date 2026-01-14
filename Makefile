@@ -1,5 +1,6 @@
-.PHONY: build run clean deps setup install-deps
+.PHONY: build run clean deps setup install-deps build-windows build-linux build-all
 
+# Default build for current platform
 build:
 	go build -o nelko-print ./cmd/nelko-print
 
@@ -7,7 +8,7 @@ run: build
 	./nelko-print
 
 clean:
-	rm -f nelko-print
+	rm -f nelko-print nelko-print.exe
 
 deps:
 	go mod tidy
@@ -16,9 +17,31 @@ deps:
 setup:
 	./setup.sh
 
+# === Cross-compilation targets ===
+
+# Build for Windows (from Linux)
+build-windows:
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
+		go build -o nelko-print.exe ./cmd/nelko-print
+
+# Build for Linux explicitly
+build-linux:
+	GOOS=linux GOARCH=amd64 go build -o nelko-print ./cmd/nelko-print
+
+# Build for all platforms
+build-all: build-linux build-windows
+
+# === System dependency installation ===
+
 # Install system deps (Ubuntu/Zorin)
 install-deps:
 	sudo apt install -y libgl1-mesa-dev xorg-dev bluez
+
+# Install cross-compilation tools for Windows builds
+install-cross-deps:
+	sudo apt install -y mingw-w64
+
+# === Bluetooth utilities ===
 
 # List paired Bluetooth devices
 list-bt:

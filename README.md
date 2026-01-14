@@ -1,7 +1,7 @@
 # Fyne-P21-Print
-Printing/Label maker app for linux. Prints to the Nelko P21, tested on Zorin, offered as-is <3
+Cross-platform label maker app for the Nelko P21 thermal printer. Works on Linux and Windows!
 
-Written in GO using FYNE
+Written in Go using Fyne
 
 <img width="615" height="577" alt="image" src="https://github.com/user-attachments/assets/f2d1a4f7-9385-47fd-a460-ce4689f2fdec" />
 
@@ -11,6 +11,7 @@ Here are some vibe docs, I really don't expect anyone to use it but if you stumb
 
 ## Quick Start
 
+### Linux
 ```bash
 # One-time setup
 ./setup.sh
@@ -19,16 +20,23 @@ Here are some vibe docs, I really don't expect anyone to use it but if you stumb
 ./nelko-print
 ```
 
-That's it! The app handles Bluetooth connection automatically.
+### Windows
+1. Download `nelko-print.exe` from releases (or build from source)
+2. Pair your Nelko P21 via Windows Bluetooth settings
+3. Run the app and select your printer's COM port
+4. Print!
+
+## Supported Platforms
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Linux (x64) | ✅ Full support | Auto Bluetooth connection via rfcomm |
+| Windows (x64) | ✅ Full support | Uses COM ports (auto-detected when BT paired) |
+| macOS | ❌ Not tested | PRs welcome! |
 
 ## Prerequisites
 
-- Go 1.22+
-- BlueZ (for Bluetooth)
-- Fyne dependencies (OpenGL, etc.)
-
-### Install dependencies (Ubuntu/Zorin)
-
+### Linux (Ubuntu/Debian/Zorin)
 ```bash
 # Fyne deps
 sudo apt install -y libgl1-mesa-dev xorg-dev
@@ -40,21 +48,41 @@ sudo apt install -y bluez
 sudo usermod -aG dialout $USER
 ```
 
+### Windows
+- Go 1.22+ (for building from source)
+- No additional dependencies for running pre-built exe
+
 ## Building
 
+### Linux
 ```bash
-go mod tidy
+make build
+# or
 go build -o nelko-print ./cmd/nelko-print
 ```
 
-Or just:
+### Windows (native)
+```powershell
+go build -o nelko-print.exe ./cmd/nelko-print
+```
+
+### Cross-compile Windows from Linux
 ```bash
-make build
+# Install cross-compiler first
+make install-cross-deps
+
+# Build Windows exe
+make build-windows
+```
+
+### Build all platforms
+```bash
+make build-all
 ```
 
 ## Usage
 
-### The Easy Way (New!)
+### Linux - The Easy Way
 
 1. **Pair the printer** via your system's Bluetooth settings (one-time setup)
 2. **Run the app**: `./nelko-print`
@@ -64,7 +92,17 @@ make build
 
 The app automatically handles the RFCOMM connection that previously required manual terminal commands.
 
-### Manual/Advanced Method
+### Windows
+
+1. **Pair the printer** via Windows Settings → Bluetooth & devices
+2. **Note the COM port** assigned (check Device Manager → Ports if unsure)
+3. **Run the app**: `nelko-print.exe`
+4. **Select your COM port** from the dropdown
+5. **Click Connect** and print!
+
+On Windows, paired Bluetooth SPP devices appear as COM ports automatically - no special setup needed.
+
+### Manual/Advanced Method (Linux)
 
 If you prefer manual control or the auto-connect doesn't work:
 
@@ -83,6 +121,16 @@ sudo rfcomm connect /dev/rfcomm0 XX:XX:XX:XX:XX:XX 1
 ./nelko-print
 ```
 
+## Features
+
+- **Image printing**: Load PNG, JPG, GIF, BMP, WebP images
+- **Text labels**: Type text directly with adjustable font size
+- **Orientation**: Horizontal or Vertical text layout
+- **Invert**: White-on-black or black-on-white
+- **Word wrap options**: Break anywhere or only on spaces
+- **Multiple copies**: Print multiple labels at once
+- **Density control**: Adjust print darkness
+
 ## Supported Label Sizes
 
 - 12x40mm
@@ -93,34 +141,31 @@ sudo rfcomm connect /dev/rfcomm0 XX:XX:XX:XX:XX:XX 1
 
 ## How It Works
 
-The Nelko P21 uses Bluetooth Serial Port Profile (SPP/RFCOMM) for communication. The Linux `rfcomm` tool creates a virtual serial device (`/dev/rfcommN`) that the app can write print commands to.
+The Nelko P21 uses Bluetooth Serial Port Profile (SPP/RFCOMM) for communication.
 
-The app now handles this automatically:
-1. Lists paired Bluetooth devices using `bluetoothctl`
-2. Uses `pkexec` (or `sudo`) to run `rfcomm connect` with elevated privileges
-3. Waits for the device to appear, then opens it as a serial port
-4. Sends TSPL2 print commands to the printer
+**On Linux:** The `rfcomm` tool creates a virtual serial device (`/dev/rfcommN`) that the app can write print commands to. The app handles this automatically with privilege escalation.
+
+**On Windows:** Paired Bluetooth SPP devices appear as COM ports automatically. Just select the right COM port and connect.
+
+Both platforms then communicate using TSPL2 print commands over the serial connection.
 
 ## Troubleshooting
 
-### "Permission denied" on /dev/rfcomm0
+### Linux
 
+#### "Permission denied" on /dev/rfcomm0
 Add yourself to the `dialout` group:
-
 ```bash
 sudo usermod -aG dialout $USER
 ```
-
 Then log out and back in.
 
-### rfcomm command not found
-
+#### rfcomm command not found
 ```bash
 sudo apt install bluez
 ```
 
-### pkexec not working / No authentication agent
-
+#### pkexec not working / No authentication agent
 Install PolicyKit agent for your desktop:
 ```bash
 # GNOME/Zorin
@@ -130,17 +175,30 @@ sudo apt install policykit-1-gnome
 sudo apt install polkit-kde-agent-1
 ```
 
-### Printer not showing in dropdown
+### Windows
 
+#### Can't find COM port
+1. Open Device Manager
+2. Expand "Ports (COM & LPT)"
+3. Look for a Bluetooth-related COM port (may say "Standard Serial over Bluetooth link")
+4. Note the COM number (e.g., COM3)
+
+#### Printer paired but no COM port appears
+Some Windows versions need you to manually add the Serial Port service:
+1. Settings → Bluetooth & devices → Devices
+2. Click on your printer → More Bluetooth options
+3. COM Ports tab → Add → Outgoing → Select your printer
+
+### General
+
+#### Printer not showing in dropdown
 Make sure the printer is paired in your system's Bluetooth settings first. The app only shows devices that are already paired.
 
-### Connection timeout
-
+#### Connection timeout
 1. Make sure the printer is powered on and in range
 2. Try re-pairing the printer
-3. Use the manual method with `rfcomm connect` to see detailed error messages
+3. On Linux, use the manual method with `rfcomm connect` to see detailed error messages
 
 ## License
 
 MIT
-
