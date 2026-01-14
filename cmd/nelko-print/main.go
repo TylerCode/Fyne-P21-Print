@@ -19,7 +19,13 @@ import (
 	"nelko-print/internal/tspl"
 )
 
+const (
+	AppVersion = "1.1.0"
+	AppName    = "Nelko P21 Print"
+)
+
 type App struct {
+	fyneApp    fyne.App
 	window     fyne.Window
 	printer    *printer.Printer
 	rfcommConn *printer.RFCOMMConnection
@@ -27,50 +33,89 @@ type App struct {
 	previewImg *canvas.Image
 
 	// Settings
-	labelSize   tspl.LabelSize
-	density     int
-	threshold   uint8
-	copies      int
-	invert      bool
+	labelSize tspl.LabelSize
+	density   int
+	threshold uint8
+	copies    int
+	invert    bool
 
 	// Widgets that need updating
-	statusLabel     *widget.Label
-	connectBtn      *widget.Button
-	printBtn        *widget.Button
-	btDeviceSelect  *widget.Select
-	portSelect      *widget.Select
-	refreshBTBtn    *widget.Button
+	statusLabel    *widget.Label
+	connectBtn     *widget.Button
+	printBtn       *widget.Button
+	btDeviceSelect *widget.Select
+	portSelect     *widget.Select
+	refreshBTBtn   *widget.Button
 
 	// Bluetooth devices cache
 	btDevices []printer.BluetoothDevice
 
 	// Text mode
-	textEntry   *widget.Entry
-	orientation imaging.Orientation
-	fontSize    float64
+	textEntry     *widget.Entry
+	orientation   imaging.Orientation
+	fontSize      float64
+	textInvert    bool
+	wordBreakOnly bool
 }
 
 func main() {
 	a := app.New()
-	w := a.NewWindow("Nelko P21 Print")
+	w := a.NewWindow(fmt.Sprintf("%s v%s", AppName, AppVersion))
 	w.Resize(fyne.NewSize(650, 550))
 
 	nelkoApp := &App{
-		window:      w,
-		labelSize:   tspl.Label14x40,
-		density:     10,
-		threshold:   128,
-		copies:      1,
-		invert:      false,
-		fontSize:    24,
-		orientation: imaging.Horizontal,
+		fyneApp:       a,
+		window:        w,
+		labelSize:     tspl.Label14x40,
+		density:       10,
+		threshold:     128,
+		copies:        1,
+		invert:        false,
+		fontSize:      24,
+		orientation:   imaging.Horizontal,
+		textInvert:    false,
+		wordBreakOnly: false,
 	}
 
+	// Set up menu
+	w.SetMainMenu(nelkoApp.buildMenu())
 	w.SetContent(nelkoApp.buildUI())
 	w.SetOnClosed(func() {
 		nelkoApp.cleanup()
 	})
 	w.ShowAndRun()
+}
+
+func (a *App) buildMenu() *fyne.MainMenu {
+	// Help menu with About
+	aboutItem := fyne.NewMenuItem("About", func() {
+		a.showAboutDialog()
+	})
+
+	helpMenu := fyne.NewMenu("Help", aboutItem)
+
+	return fyne.NewMainMenu(helpMenu)
+}
+
+func (a *App) showAboutDialog() {
+	content := container.NewVBox(
+		widget.NewLabelWithStyle(AppName, fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(fmt.Sprintf("Version %s", AppVersion)),
+		widget.NewSeparator(),
+		widget.NewLabel("A label printing app for the Nelko P21 thermal printer."),
+		widget.NewLabel(""),
+		widget.NewLabel("Based on reverse engineering work from:"),
+		widget.NewHyperlink("merlinschumacher/nelko-p21-print", parseURL("https://github.com/merlinschumacher/nelko-p21-print")),
+		widget.NewLabel(""),
+		widget.NewLabel("Built with Fyne and Go"),
+	)
+
+	dialog.ShowCustom("About", "Close", content, a.window)
+}
+
+func parseURL(urlStr string) *fyne.URI {
+	// Just return nil if parsing fails - the hyperlink will still display
+	return nil
 }
 
 func (a *App) cleanup() {
@@ -214,16 +259,28 @@ func (a *App) buildUI() fyne.CanvasObject {
 	})
 	orientationSelect.SetSelected("Horizontal")
 
-	fontSizeSlider := widget.NewSlider(8, 72)
+	fontSizeSlider := widget.NewSlider(4, 72) // Reduced min from 8 to 4
 	fontSizeSlider.Value = a.fontSize
 	fontSizeSlider.OnChanged = func(f float64) {
 		a.fontSize = f
 		a.updateTextPreview()
 	}
 
+	textInvertCheck := widget.NewCheck("Invert", func(b bool) {
+		a.textInvert = b
+		a.updateTextPreview()
+	})
+
+	wordBreakCheck := widget.NewCheck("Break on space only", func(b bool) {
+		a.wordBreakOnly = b
+		a.updateTextPreview()
+	})
+
 	textSettings := widget.NewForm(
 		widget.NewFormItem("Orientation", orientationSelect),
 		widget.NewFormItem("Font Size", fontSizeSlider),
+		widget.NewFormItem("", textInvertCheck),
+		widget.NewFormItem("", wordBreakCheck),
 	)
 
 	textTab := container.NewVBox(
@@ -521,6 +578,11 @@ func (a *App) updatePreview() {
 	mono := imaging.ToMonochrome(a.sourceImg, a.labelSize.PixelW, a.labelSize.PixelH, a.threshold, a.invert)
 	preview := imaging.PreviewMonochrome(mono, a.labelSize.PixelW, a.labelSize.PixelH)
 
+	// For vertical orientation, rotate the preview so text is readable on screen
+	if a.orientation == imaging.Vertical {
+		preview = imaging.RotatePreviewForDisplay(preview)
+	}
+
 	a.previewImg.Image = preview
 	a.previewImg.Refresh()
 }
@@ -531,7 +593,14 @@ func (a *App) updateTextPreview() {
 		return
 	}
 
-	img, err := imaging.RenderText(text, a.labelSize.PixelW, a.labelSize.PixelH, a.fontSize, a.orientation)
+	opts := imaging.TextOptions{
+		FontSize:      a.fontSize,
+		Orientation:   a.orientation,
+		Invert:        a.textInvert,
+		WordBreakOnly: a.wordBreakOnly,
+	}
+
+	img, err := imaging.RenderTextWithOptions(text, a.labelSize.PixelW, a.labelSize.PixelH, opts)
 	if err != nil {
 		return
 	}
