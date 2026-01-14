@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image"
+	"net/url"
 	"os"
 	"strings"
 
@@ -113,9 +114,9 @@ func (a *App) showAboutDialog() {
 	dialog.ShowCustom("About", "Close", content, a.window)
 }
 
-func parseURL(urlStr string) *fyne.URI {
-	// Just return nil if parsing fails - the hyperlink will still display
-	return nil
+func parseURL(urlStr string) *url.URL {
+	u, _ := url.Parse(urlStr)
+	return u
 }
 
 func (a *App) cleanup() {
