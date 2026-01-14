@@ -366,7 +366,7 @@ func (a *App) print() {
 	}
 
 	// Convert image to bitmap
-	bitmap := imaging.ToMonochrome(a.sourceImg, a.labelSize.PixelW, a.labelSize.PixelH, a.threshold, a.invert)
+	bitmap := imaging.ToMonochrome(a.sourceImg, a.labelSize.PixelW, a.labelSize.PixelH, a.threshold, !a.invert)
 
 	// Build print job
 	job := tspl.BuildPrintJob(a.labelSize, a.density, bitmap, a.copies)
