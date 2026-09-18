@@ -154,6 +154,14 @@ sudo rfcomm connect /dev/rfcomm0 XX:XX:XX:XX:XX:XX 1
 - **Multiple copies**: Print multiple labels at once
 - **Density control**: Adjust print darkness
 
+### Saving and reusing text labels
+
+In the **Text** tab, use **Save** to save an editable `.ntext` file and **Load** to restore it. Text labels retain the text, font size, orientation, text inversion, word wrapping, label size, density, copy count, threshold, and output inversion. Loading a file also updates the visible controls and preview.
+
+Use **Export PNG** to export the current text label as a monochrome image in print orientation. It can be loaded again through **Image → Load Image**; select the same label size and use the default image inversion setting. PNG files contain a flattened image, so use `.ntext` when you want to edit the text later.
+
+Text files use a separate format from Designer `.nlbl` files. Open each format in its corresponding tab.
+
 ## Supported Label Sizes
 
 - 12x40mm

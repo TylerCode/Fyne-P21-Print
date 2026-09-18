@@ -299,7 +299,27 @@ func (a *App) buildUI() fyne.CanvasObject {
 		widget.NewFormItem("", wordBreakCheck),
 	)
 
+	textFiles := container.NewHBox(
+		widget.NewButton("Save", a.saveTextLabel),
+		widget.NewButton("Load", func() {
+			a.loadTextLabel(func(d textLabelFile) {
+				sizeSelect.SetSelected(d.LabelSize)
+				densitySlider.SetValue(float64(d.Density))
+				copiesEntry.SetText(fmt.Sprint(d.Copies))
+				thresholdSlider.SetValue(float64(d.Threshold))
+				invertCheck.SetChecked(d.Invert)
+				orientationSelect.SetSelected(d.Orientation)
+				fontSizeSlider.SetValue(d.FontSize)
+				textInvertCheck.SetChecked(d.TextInvert)
+				wordBreakCheck.SetChecked(d.WordBreakOnly)
+				a.textEntry.SetText(d.Text)
+				a.updateTextPreview()
+			})
+		}),
+		widget.NewButton("Export PNG", a.exportTextPNG),
+	)
 	textTab := container.NewVBox(
+		textFiles,
 		a.textEntry,
 		textSettings,
 	)
@@ -311,6 +331,9 @@ func (a *App) buildUI() fyne.CanvasObject {
 		container.NewTabItem("Designer", a.buildDesignerTab()),
 	)
 	tabs.OnSelected = func(ti *container.TabItem) {
+		if ti.Text == "Text" {
+			a.updateTextPreview()
+		}
 		if ti.Text == "Designer" {
 			a.renderDesignPreview()
 		}
@@ -671,6 +694,14 @@ func (a *App) updatePreview() {
 func (a *App) updateTextPreview() {
 	text := a.textEntry.Text
 	if text == "" {
+		a.sourceImg = nil
+		if a.previewImg != nil {
+			a.previewImg.Image = nil
+			a.previewImg.Refresh()
+		}
+		if a.printBtn != nil {
+			a.printBtn.Disable()
+		}
 		return
 	}
 
