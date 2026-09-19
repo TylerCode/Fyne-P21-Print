@@ -6,10 +6,7 @@ import (
 	"image/draw"
 	"math"
 
-	"github.com/golang/freetype"
 	"github.com/golang/freetype/truetype"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/goregular"
 
 	"nelko-print/internal/imaging"
 )
@@ -47,8 +44,8 @@ func (t *TextElement) Raster(scale float64) image.Image {
 		return RenderRotated(img, t.A)
 	}
 
-	f, err := truetype.Parse(goregular.TTF)
-	if err != nil {
+	f := imaging.PrimaryFont()
+	if f == nil {
 		return RenderRotated(img, t.A)
 	}
 	size := t.FontSize * scale
@@ -56,28 +53,29 @@ func (t *TextElement) Raster(scale float64) image.Image {
 	if t.Invert {
 		fg = color.RGBA{255, 255, 255, 255}
 	}
-	c := freetype.NewContext()
-	c.SetDPI(203)
-	c.SetFont(f)
-	c.SetFontSize(size)
-	c.SetClip(img.Bounds())
-	c.SetDst(img)
-	c.SetSrc(&image.Uniform{fg})
-	c.SetHinting(font.HintingFull)
 
-	face := truetype.NewFace(f, &truetype.Options{Size: size, DPI: 203})
-	metrics := face.Metrics()
+	primaryFace := truetype.NewFace(f, &truetype.Options{Size: size, DPI: 203})
+	emojiFace := imaging.NewEmojiFace(size, 203)
+
+	metrics := primaryFace.Metrics()
 	lineH := metrics.Height.Ceil()
-	lines := imaging.WrapWordOnly(t.Text, face, w-2)
+	lines := imaging.WrapWordOnlyWithEmoji(t.Text, primaryFace, emojiFace, w-2)
 	y := metrics.Ascent.Ceil()
 	for _, line := range lines {
-		lw := imaging.MeasureString(face, line)
+		lw := imaging.MeasureStringWithEmoji(primaryFace, emojiFace, line)
 		x := (w - lw) / 2
 		if x < 0 {
 			x = 0
 		}
-		c.DrawString(line, freetype.Pt(x, y))
+		imaging.DrawStringFallback(img, &image.Uniform{fg}, primaryFace, emojiFace, line, x, y)
 		y += lineH
 	}
+
+	// Close faces to avoid resource leaks.
+	primaryFace.Close()
+	if emojiFace != nil {
+		emojiFace.Close()
+	}
+
 	return RenderRotated(img, t.A)
 }
