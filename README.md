@@ -139,6 +139,18 @@ sudo rfcomm connect /dev/rfcomm0 XX:XX:XX:XX:XX:XX 1
 ./nelko-print
 ```
 
+### Bluetooth LE-only printers (all platforms)
+
+Some P21 units only support Bluetooth Low Energy. On Linux, `rfcomm connect` fails
+with "Host is down" even though the system shows the printer as connected; on
+Windows, no COM port appears. For these printers:
+
+1. Turn the printer on (pairing is optional for BLE)
+2. In the **Bluetooth LE Printer** row, click the search button to scan (~5 seconds)
+3. Pick the printer and click **Connect**, then print
+
+No `rfcomm`, `pkexec`, or `dialout` group is needed for BLE.
+
 ## Features
 
 - **Designer mode (WYSIWYG)**: Place and arrange multiple elements on a visual
@@ -153,6 +165,7 @@ sudo rfcomm connect /dev/rfcomm0 XX:XX:XX:XX:XX:XX 1
 - **Word wrap options**: Break anywhere or only on spaces
 - **Multiple copies**: Print multiple labels at once
 - **Density control**: Adjust print darkness
+- **Bluetooth LE**: Connects directly to BLE-only P21 units
 
 ## Supported Label Sizes
 
@@ -171,6 +184,8 @@ The Nelko P21 uses Bluetooth Serial Port Profile (SPP/RFCOMM) for communication.
 **On Windows:** Paired Bluetooth SPP devices appear as COM ports automatically. Just select the right COM port and connect.
 
 Both platforms then communicate using TSPL2 print commands over the serial connection.
+
+**Bluetooth LE-only units:** The same TSPL2 commands are written to GATT characteristic `ff02` (service `ff00`), and the printer's replies arrive as notifications on `ff01`. Data is sent in chunks of up to 200 bytes with a short pause between them.
 
 ## Troubleshooting
 
@@ -221,6 +236,9 @@ Make sure the printer is paired in your system's Bluetooth settings first. The a
 1. Make sure the printer is powered on and in range
 2. Try re-pairing the printer
 3. On Linux, use the manual method with `rfcomm connect` to see detailed error messages
+
+#### "Host is down" from rfcomm, or no COM port on Windows
+Your printer is probably Bluetooth LE-only. Use the **Bluetooth LE Printer** row instead (see [Bluetooth LE-only printers](#bluetooth-le-only-printers-all-platforms)).
 
 ## License
 

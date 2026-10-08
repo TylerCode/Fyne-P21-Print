@@ -54,6 +54,12 @@ type App struct {
 	// Bluetooth devices cache
 	btDevices []printer.BluetoothDevice
 
+	// Bluetooth LE (BLE-only P21 units)
+	bleDeviceSelect *widget.Select
+	bleScanBtn      *widget.Button
+	bleConnectBtn   *widget.Button
+	bleDevices      []printer.BluetoothDevice
+
 	// Text mode
 	textEntry     *widget.Entry
 	orientation   imaging.Orientation
@@ -162,6 +168,23 @@ func (a *App) buildUI() fyne.CanvasObject {
 		nil, nil, nil,
 		container.NewHBox(a.refreshBTBtn, a.connectBtn),
 		a.btDeviceSelect,
+	)
+
+	// === BLUETOOTH LE SECTION (BLE-only P21 units) ===
+	bleLabel := widget.NewLabel("Bluetooth LE Printer (if Connect above fails):")
+	a.bleDeviceSelect = widget.NewSelect([]string{}, func(s string) {})
+	a.bleDeviceSelect.PlaceHolder = "Click scan to find printers"
+	a.bleScanBtn = widget.NewButtonWithIcon("", theme.SearchIcon(), func() {
+		go a.scanBLEDevices()
+	})
+	a.bleConnectBtn = widget.NewButton("Connect", func() {
+		a.connectBLE()
+	})
+
+	bleRow := container.NewBorder(
+		nil, nil, nil,
+		container.NewHBox(a.bleScanBtn, a.bleConnectBtn),
+		a.bleDeviceSelect,
 	)
 
 	// === MANUAL PORT SECTION (collapsible/advanced) ===
@@ -325,6 +348,8 @@ func (a *App) buildUI() fyne.CanvasObject {
 	leftPanel := container.NewVBox(
 		btLabel,
 		btRow,
+		bleLabel,
+		bleRow,
 		widget.NewSeparator(),
 		widget.NewAccordion(
 			widget.NewAccordionItem("Advanced", advancedContent),
@@ -526,6 +551,78 @@ func (a *App) connectBluetooth() {
 	}()
 }
 
+func (a *App) scanBLEDevices() {
+	a.bleScanBtn.Disable()
+	defer a.bleScanBtn.Enable()
+	a.statusLabel.SetText("Scanning for Bluetooth LE printers...")
+
+	devices, err := printer.ScanBLEDevices(5 * time.Second)
+	if err != nil {
+		a.statusLabel.SetText(fmt.Sprintf("BLE scan failed: %v", err))
+		return
+	}
+
+	a.bleDevices = devices
+	options := make([]string, len(devices))
+	for i, d := range devices {
+		options[i] = fmt.Sprintf("%s (%s)", d.Name, d.MAC)
+	}
+	a.bleDeviceSelect.Options = options
+	a.bleDeviceSelect.ClearSelected()
+	if len(options) > 0 {
+		a.bleDeviceSelect.SetSelected(options[0])
+	}
+	a.bleDeviceSelect.Refresh()
+
+	a.statusLabel.SetText(fmt.Sprintf("Found %d Bluetooth LE printer(s)", len(devices)))
+}
+
+func (a *App) connectBLE() {
+	// If already connected, disconnect
+	if a.printer != nil {
+		a.disconnect()
+		return
+	}
+
+	idx := a.bleDeviceSelect.SelectedIndex()
+	if idx < 0 || idx >= len(a.bleDevices) {
+		dialog.ShowError(fmt.Errorf("no Bluetooth LE printer selected - click scan first"), a.window)
+		return
+	}
+	device := a.bleDevices[idx]
+
+	a.bleConnectBtn.Disable()
+	a.bleScanBtn.Disable()
+	a.bleDeviceSelect.Disable()
+
+	go func() {
+		a.statusLabel.SetText(fmt.Sprintf("Connecting to %s over Bluetooth LE...", device.Name))
+
+		p, err := printer.ConnectBLE(device.MAC, 20*time.Second)
+		if err != nil {
+			a.statusLabel.SetText(fmt.Sprintf("Connection failed: %v", err))
+			a.bleConnectBtn.Enable()
+			a.bleScanBtn.Enable()
+			a.bleDeviceSelect.Enable()
+			dialog.ShowError(err, a.window)
+			return
+		}
+
+		a.printer = p
+		a.bleConnectBtn.SetText("Disconnect")
+		a.bleConnectBtn.Enable()
+		a.statusLabel.SetText(fmt.Sprintf("Connected to %s (Bluetooth LE)", device.Name))
+
+		if batt, err := p.GetBattery(); err == nil {
+			a.statusLabel.SetText(fmt.Sprintf("Connected to %s (Bluetooth LE, Battery: %d%%)", device.Name, batt))
+		}
+
+		// Connected: allow printing. print() guards against an empty design.
+		a.printBtn.Enable()
+		a.startHealthMonitor()
+	}()
+}
+
 func (a *App) connectManualPort() {
 	// If already connected, disconnect
 	if a.printer != nil {
@@ -617,6 +714,10 @@ func (a *App) disconnect() {
 	a.connectBtn.SetText("Connect")
 	a.btDeviceSelect.Enable()
 	a.refreshBTBtn.Enable()
+	a.bleConnectBtn.SetText("Connect")
+	a.bleConnectBtn.Enable()
+	a.bleScanBtn.Enable()
+	a.bleDeviceSelect.Enable()
 	a.statusLabel.SetText("Disconnected")
 	a.printBtn.Disable()
 }

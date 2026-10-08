@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -18,9 +19,16 @@ var (
 	ErrTimeout      = errors.New("operation timed out")
 )
 
+// Port is the byte stream to the printer: a serial port (RFCOMM, COM, USB)
+// or a BLE GATT link. Read must return after a timeout when no data arrives.
+type Port interface {
+	io.ReadWriteCloser
+	ResetInputBuffer() error
+}
+
 // Printer represents a connection to the Nelko P21
 type Printer struct {
-	port     serial.Port
+	port     Port
 	portName string
 	mac      string
 	mu       sync.Mutex // serializes all port I/O
@@ -261,6 +269,9 @@ func (p *Printer) PortName() string {
 // is a reliable liveness signal that (unlike a status read) does not require
 // the printer to answer queries it may not support.
 func (p *Printer) Alive() bool {
+	if a, ok := p.port.(interface{ Alive() bool }); ok {
+		return a.Alive()
+	}
 	if p.portName == "" {
 		return false
 	}
